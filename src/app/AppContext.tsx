@@ -16,11 +16,11 @@ import {
   type Campaign,
   type DocumentStatus,
   type MedicalRole,
+  type Role,
   type Session,
 } from '../types'
 
 const sessionKey = 'aethera-session'
-const dataKey = 'aethera-data'
 
 type LoginResult = { success: boolean; message?: string }
 
@@ -86,24 +86,30 @@ const now = () => new Date().toLocaleString('en-GB', { dateStyle: 'medium', time
 export function AppProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => {
     const stored = localStorage.getItem(sessionKey)
-    return stored ? (JSON.parse(stored) as Session) : null
+    if (!stored) return null
+    const parsed = JSON.parse(stored) as { role: Role; scope?: AdminScope }
+    if (parsed.role === 'STUDENT') return { role: 'STUDENT', userId: studentProfile.id }
+    if (parsed.role === 'DOCTOR') return { role: 'DOCTOR', userId: medicalStaff[0]?.id ?? 'med-001' }
+    if (parsed.role === 'NURSE') return { role: 'NURSE', userId: medicalStaff[1]?.id ?? 'med-002' }
+    if (parsed.role === 'ADMIN')
+      return {
+        role: 'ADMIN',
+        userId: parsed.scope === 'ONOU' ? credentialMap.adminOnou.id : credentialMap.adminDou.id,
+        scope: parsed.scope,
+      }
+    return null
   })
-  const [data, setData] = useState<AppData>(() => {
-    const stored = localStorage.getItem(dataKey)
-    return stored ? (JSON.parse(stored) as AppData) : initialData
-  })
+  const [data, setData] = useState<AppData>(initialData)
 
   useEffect(() => {
     if (session) {
-      localStorage.setItem(sessionKey, JSON.stringify(session))
+      const storedSession = { role: session.role, scope: session.scope }
+      localStorage.setItem(sessionKey, JSON.stringify(storedSession))
     } else {
       localStorage.removeItem(sessionKey)
     }
   }, [session])
 
-  useEffect(() => {
-    localStorage.setItem(dataKey, JSON.stringify(data))
-  }, [data])
 
   const student = useMemo(() => {
     if (session?.role !== 'STUDENT') return null
